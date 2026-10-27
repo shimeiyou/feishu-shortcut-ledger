@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: iOS Shortcuts + Feishu Bitable](https://img.shields.io/badge/Platform-iOS%20Shortcuts%20%2B%20Feishu%20Bitable-00D6B9)](docs/03-iphone-shortcut-guide.md)
 
-**[English Documentation (README.en.md)](README.en.md)** | **[版权边界与原创声明](docs/COPYRIGHT-AND-ATTRIBUTION.md)**
+**[English Documentation (README.en.md)](README.en.md)**
 
 一套**零第三方中转、零服务器成本、支持「日常消费 + 副业/项目」双账本**的飞书多维表格（Bitable）+ iPhone 快捷指令（Shortcuts）自动记账开源方案与零基础保姆级教程。
 
@@ -42,8 +42,7 @@ feishu-shortcut-ledger/
 │   ├── 01-feishu-bitable-setup.md       # 第一步：创建多维表格、3 个公式列与 8 大仪表盘组件详解
 │   ├── 02-feishu-open-app-setup.md      # 第二步：飞书开放平台自建应用、权限开通与「添加文档应用」授权
 │   ├── 03-iphone-shortcut-guide.md      # 第三步：iPhone 快捷指令导入、手动搭建拆解与「轻点背面」绑定
-│   ├── 04-troubleshooting-faq.md        # 第四步：常见错误码（91403 / 99991663 / 1254045）排查手册
-│   └── COPYRIGHT-AND-ATTRIBUTION.md     # 原创性声明、版权法律边界解析（思想与表达二分法）与社区致谢
+│   └── 04-troubleshooting-faq.md        # 第四步：常见错误码（91403 / 99991663 / 1254045）排查手册
 ├── shortcuts/
 │   ├── 飞书双账本自动记账-通用模板.shortcut      # 已签名（AEA1）可直接导入 iPhone 的通用脱敏模板
 │   └── Feishu-Dual-Ledger-Unsigned.shortcut   # 未签名 XML Plist 快捷指令源码（透明可审计）
@@ -155,20 +154,9 @@ FEISHU_APP_TOKEN="YOUR_BITABLE_APP_TOKEN" bash init-feishu-ledger.sh
 
 ---
 
-## 原创性声明、防抄袭设计与社区致谢 (Clean-Room & Attribution)
+## 致谢 (Acknowledgments)
 
-针对“公开发布此类自动化记账教程与开源仓库是否涉及抄袭或侵权”的问题，本仓库严格遵循著作权法**「思想与表达二分法（Idea–Expression Dichotomy）」**及开源工程**洁净室实现（Clean-Room Implementation）**标准：
-
-1. **法律原则**：著作权法保护的是具体的独创性表达（他人文章的原文段落、配图截图、特定模板文件或代码），而不垄断功能性操作流程（“双击背面 → 截屏 OCR → 正则提取数字 → 调用云端表格 API”）或客观数学/会计公式（`IF([收支]>0,[收支],0)`）。
-2. **五大洁净室防侵权措施**：
-   - **零外部模板链接**：不复制、不引用任何第三方飞书多维表格模板链接，表结构与公式均由本仓库脚本（`init-bitable.mjs` / `init-feishu-ledger.sh`）或用户从零构建。
-   - **直连飞书官方 Open API (`bitable/v1`)**：直接调用飞书开放平台标准 REST 接口（`tenant_access_token` + `records`），不依赖任何第三方闭源 Webhook 封装工具。
-   - **独创双账本有符号 `收支` + 3 公式列 + 8 看板架构**：通过单列带符号 `收支` 配合 `收入`、`支出`、`月份` 三大公式列驱动 8 个标准化仪表盘图表。
-   - **纯代码生成 `.shortcut` 捷径文件**：由 `tools/build-shortcut.py` 读取 JSON 配置从零编译生成全新的 Plist 与签名文件，完全可审计。
-   - **100% 原创文档与代码**：所有教程文本、排错手册与工具代码均从零编写。
-3. **致谢与灵感来源（Acknowledgments）**：
-   - 利用 iOS 快捷指令截屏 OCR 结合云端多维表格实现移动端快速记账的自动化思路，得益于中文效率社区（如**少数派 SSPai** 及 iOS 捷径创作者群体）的早期探索与分享。特此向社区创作者致谢！
-   - 完整法律与合规分析请参阅：**[docs/COPYRIGHT-AND-ATTRIBUTION.md](docs/COPYRIGHT-AND-ATTRIBUTION.md)**。
+利用 iOS 快捷指令本地截屏 OCR 结合飞书多维表格实现移动端快速记账的自动化思路，受到中文效率工具社区（如少数派 SSPai 及 iOS 快捷指令创作者群体）相关探索与分享的启发，特此向社区创作者致谢。
 
 ---
 

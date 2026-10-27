@@ -2,9 +2,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**[中文保姆级教程 (README.md)](README.md)** | **[Copyright & Clean-Room Attribution](docs/COPYRIGHT-AND-ATTRIBUTION.md)**
+**[中文保姆级教程 (README.md)](README.md)**
 
-A clean-room, zero-middleware open-source toolkit and beginner tutorial for **automated personal & side-business bookkeeping** using **iPhone Shortcuts (iOS native OCR)** and **Feishu Bitable (Lark Base) Open API (`bitable/v1`)**.
+A zero-middleware open-source toolkit and beginner tutorial for **automated personal & side-business bookkeeping** using **iPhone Shortcuts (iOS native OCR)** and **Feishu Bitable (Lark Base) Open API (`bitable/v1`)**.
 
 ---
 
@@ -62,12 +62,9 @@ python3 tools/build-shortcut.py --config config/shortcut-config.example.json --s
 
 ---
 
-## Clean-Room Implementation & Acknowledgments
+## Acknowledgments
 
-This repository follows the legal **Idea–Expression Dichotomy** and **Clean-Room Engineering** standards:
-- Zero third-party Bitable template links or copied `.shortcut` files are used.
-- Every script, shortcut plist structure, and tutorial document is written from scratch under the MIT License.
-- We gratefully acknowledge the Chinese efficiency and iOS Shortcuts community (such as **SSPai 少数派** contributors) for pioneering the idea of combining mobile screenshot OCR with cloud spreadsheets for personal bookkeeping. See [docs/COPYRIGHT-AND-ATTRIBUTION.md](docs/COPYRIGHT-AND-ATTRIBUTION.md) for full details.
+We gratefully acknowledge the Chinese efficiency and iOS Shortcuts community (such as SSPai 少数派 contributors) for sharing ideas around combining mobile screenshot OCR with cloud spreadsheets for personal bookkeeping.
 
 ---
 

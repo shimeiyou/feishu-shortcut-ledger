@@ -4,7 +4,7 @@
  *
  * Requires: Node.js 18+ (uses built-in global `fetch`).
  * Creates one or two ledger tables inside your Feishu Bitable base with the exact
- * Clean-Room Bookkeeping Schema:
+ * Bookkeeping Schema:
  *   Base Fields (written by iPhone Shortcut / API):
  *     1. 事件 (Text, type=1, primary column) — 消费或收入摘要
  *     2. 收支 (Number, type=2, 2 decimals)   — 正数表示收入（如 500），负数表示支出（如 -35.5）
