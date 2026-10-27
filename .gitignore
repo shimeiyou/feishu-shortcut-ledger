@@ -1,0 +1,8 @@
+# Local secrets and user configs
+.env
+.env.*
+config/shortcut-config.local.json
+config/*.local.json
+*.bak*
+.DS_Store
+node_modules/
