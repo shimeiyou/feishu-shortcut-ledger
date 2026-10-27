@@ -43,6 +43,7 @@ echo "======================================================================"
 init_table_with_lark_cli() {
   local tbl_name="$1"
   local tbl_id_var="$2"
+  local is_life="${3:-0}"
   echo ""
   echo ">>> 正在初始化数据表：${tbl_name}"
 
@@ -54,12 +55,6 @@ init_table_with_lark_cli() {
   local tbl_id="${!tbl_id_var:-YOUR_TABLE_ID}"
 
   # Step 1.2 基础字段（由 iPhone 快捷指令 / REST API 直接写入）
-  #   - 事件 (type=1, 文本主列)：消费或收入摘要
-  #   - 收支 (type=2, 数字列，保留 2 位小数)：正数表示收入（如 500），负数表示支出（如 -35.5）
-  #   - 标签 (type=1, 文本列)：通用分类标签
-  #   - 分类 (type=4, 多选/单选列)：餐饮、交通、购物、日常开销、主业收入、副业收入、采购成本等
-  #   - 时间 (type=5, 日期列 yyyy/MM/dd，开启自动填入创建时间)
-  #   - 渠道 (type=1, 文本列，可选)：微信支付 / 支付宝 / 银行卡 / 现金
   run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
     --json '{"field_name":"收支","type":2,"property":{"formatter":"0.00"}}'
 
@@ -67,7 +62,7 @@ init_table_with_lark_cli() {
     --json '{"field_name":"标签","type":1}'
 
   run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
-    --json '{"field_name":"分类","type":4,"property":{"options":[{"name":"餐饮"},{"name":"交通"},{"name":"购物"},{"name":"居住水电"},{"name":"娱乐休闲"},{"name":"医疗健康"},{"name":"主业收入"},{"name":"副业收入"},{"name":"采购成本"},{"name":"运营支出"},{"name":"设备工具"},{"name":"其他"}]}}'
+    --json '{"field_name":"分类","type":4,"property":{"options":[{"name":"餐饮"},{"name":"交通"},{"name":"购物"},{"name":"居住水电"},{"name":"娱乐休闲"},{"name":"医疗健康"},{"name":"主业收入"},{"name":"副业收入"},{"name":"采购成本"},{"name":"运营支出"},{"name":"设备工具"},{"name":"生意结余"},{"name":"其他"}]}}'
 
   run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
     --json '{"field_name":"时间","type":5,"property":{"date_formatter":"yyyy/MM/dd","auto_fill":true}}'
@@ -75,18 +70,23 @@ init_table_with_lark_cli() {
   run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
     --json '{"field_name":"渠道","type":1}'
 
-  # Step 1.3 三个核心自动计算公式列（供仪表盘 8 大图表聚合统计）
-  #   - 收入 (Formula, type=20): IF([收支]>0,[收支],0)
-  #   - 支出 (Formula, type=20): IF([收支]<0,ABS([收支]),0)
-  #   - 月份 (Formula, type=20): TEXT([时间],"YYYY/MM")
-  run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
-    --json '{"field_name":"收入","type":20,"property":{"formula_expression":"IF([收支]>0,[收支],0)","formatter":"0.00"}}'
+  # Step 1.3 三个核心自动计算公式列（供仪表盘 8 大图表聚合统计；生活账本支持「生意结余」按月自动联动）
+  if [[ "$is_life" == "1" ]]; then
+    run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
+      --json '{"field_name":"收入","type":20,"property":{"formula_expression":"IF([标签]=\"生意结余\",[收支],IF([收支]>0,[收支],0))","formatter":"0.00"}}'
+
+    run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
+      --json '{"field_name":"支出","type":20,"property":{"formula_expression":"IF([标签]=\"生意结余\",0,IF([收支]<0,ABS([收支]),0))","formatter":"0.00"}}'
+  else
+    run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
+      --json '{"field_name":"收入","type":20,"property":{"formula_expression":"IF([收支]>0,[收支],0)","formatter":"0.00"}}'
+
+    run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
+      --json '{"field_name":"支出","type":20,"property":{"formula_expression":"IF([收支]<0,ABS([收支]),0)","formatter":"0.00"}}'
+  fi
 
   run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
-    --json '{"field_name":"支出","type":20,"property":{"formula_expression":"IF([收支]<0,ABS([收支]),0)","formatter":"0.00"}}'
-
-  run_cmd lark-cli base field create --app-token "${APP_TOKEN}" --table-id "${tbl_id}" \
-    --json '{"field_name":"月份","type":20,"property":{"formula_expression":"TEXT([时间],\"YYYY/MM\")"}}'
+    --json '{"field_name":"月份","type":20,"property":{"formula_expression":"TODATE([时间],\"YYYY/MM\")"}}'
 }
 
 if ! command -v lark-cli >/dev/null 2>&1 && [[ "$DRY_RUN" == "0" ]]; then
@@ -94,8 +94,8 @@ if ! command -v lark-cli >/dev/null 2>&1 && [[ "$DRY_RUN" == "0" ]]; then
   DRY_RUN=1
 fi
 
-init_table_with_lark_cli "${TABLE_BIZ_NAME}" "FEISHU_TABLE_ID_BIZ"
-init_table_with_lark_cli "${TABLE_LIFE_NAME}" "FEISHU_TABLE_ID_LIFE"
+init_table_with_lark_cli "${TABLE_BIZ_NAME}" "FEISHU_TABLE_ID_BIZ" 0
+init_table_with_lark_cli "${TABLE_LIFE_NAME}" "FEISHU_TABLE_ID_LIFE" 1
 
 # ------------------------------------------------------------------------------
 # 2. 飞书多维表格「仪表盘（Dashboard）」8 大核心看板组件配置规范

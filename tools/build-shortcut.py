@@ -632,7 +632,355 @@ def build_shortcut_dict(cfg: dict) -> dict:
         },
     })
 
-    # 3.4 Show Completion Notification
+    # 3.4 Plan A Auto-Sync: When writing to Business Ledger (账本 == ledgers["biz_name"]),
+    #     aggregate current month SUM(收支) from biz_url and upsert into life_url
+    g_sync_biz = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_sync_biz,
+            "WFControlFlowMode": 0,
+            "WFCondition": 4,
+            "WFConditionalActionString": ledgers["biz_name"],
+            "WFInput": {
+                "Type": "Variable",
+                "Variable": var_attach("账本"),
+            },
+        },
+    })
+
+    u_fmt_month = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.format.date",
+        "WFWorkflowActionParameters": {
+            "UUID": u_fmt_month,
+            "WFDate": {
+                "Value": {"Type": "CurrentDate"},
+                "WFSerializationType": "WFTextTokenAttachment",
+            },
+            "WFDateFormatStyle": "Custom",
+            "WFDateFormat": "yyyy/MM",
+        },
+    })
+    actions.append(act_setvar("cur_month", out_attach("格式化后的日期", u_fmt_month)))
+
+    set_text_var(
+        actions,
+        "sync_event",
+        token_str(var_token("cur_month"), " 生意净结余（自动联动）"),
+    )
+
+    u_biz_month_req = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionParameters": {
+            "ShowHeaders": True,
+            "UUID": u_biz_month_req,
+            "WFHTTPHeaders": {
+                "Value": {
+                    "WFDictionaryFieldValueItems": [
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Authorization"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": token_str("Bearer ", var_token("feishu_token")),
+                        },
+                    ]
+                },
+                "WFSerializationType": "WFDictionaryFieldValue",
+            },
+            "WFHTTPMethod": "GET",
+            "WFURL": token_str(
+                var_token("biz_url"),
+                "?page_size=500&filter=CurrentValue.%5B%E6%9C%88%E4%BB%BD%5D%3D%22",
+                var_token("cur_month"),
+                "%22",
+            ),
+        },
+    })
+
+    u_biz_data = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_biz_data,
+            "WFDictionaryKey": "data",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("URL 的内容", u_biz_month_req),
+        },
+    })
+    u_biz_items = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_biz_items,
+            "WFDictionaryKey": "items",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("词典值", u_biz_data),
+        },
+    })
+
+    g_rep = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.repeat.each",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_rep,
+            "WFControlFlowMode": 0,
+            "WFInput": out_attach("词典值", u_biz_items),
+        },
+    })
+    u_item_fields = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_item_fields,
+            "WFDictionaryKey": "fields",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": var_attach("Repeat Item"),
+        },
+    })
+    u_item_amt = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_item_amt,
+            "WFDictionaryKey": "收支",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("词典值", u_item_fields),
+        },
+    })
+    u_rep_end = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.repeat.each",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_rep,
+            "UUID": u_rep_end,
+            "WFControlFlowMode": 2,
+        },
+    })
+
+    u_sum = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.statistics",
+        "WFWorkflowActionParameters": {
+            "UUID": u_sum,
+            "WFInput": out_attach("重复结果", u_rep_end),
+            "WFStatisticsOperation": "Sum",
+        },
+    })
+    u_round = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.round",
+        "WFWorkflowActionParameters": {
+            "UUID": u_round,
+            "WFInput": out_attach("总和", u_sum),
+            "WFRoundMode": "Normal",
+            "WFRoundType": "Hundredths",
+        },
+    })
+    actions.append(act_setvar("month_net", out_attach("四舍五入后的数字", u_round)))
+
+    set_text_var(
+        actions,
+        "sync_body",
+        token_str(
+            '{"fields":{"事件":"', var_token("sync_event"),
+            '","收支":', var_token("month_net"),
+            ',"标签":"生意结余","分类":["生意结余"],"渠道":"生意账本自动同步"}}'
+        ),
+    )
+
+    u_life_search = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionParameters": {
+            "ShowHeaders": True,
+            "UUID": u_life_search,
+            "WFHTTPHeaders": {
+                "Value": {
+                    "WFDictionaryFieldValueItems": [
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Authorization"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": token_str("Bearer ", var_token("feishu_token")),
+                        },
+                    ]
+                },
+                "WFSerializationType": "WFDictionaryFieldValue",
+            },
+            "WFHTTPMethod": "GET",
+            "WFURL": token_str(
+                var_token("life_url"),
+                "?page_size=20&filter=AND(CurrentValue.%5B%E6%A0%87%E7%AD%BE%5D%3D%22%E7%94%9F%E6%84%8F%E7%BB%93%E4%BD%99%22%2CCurrentValue.%5B%E6%9C%88%E4%BB%BD%5D%3D%22",
+                var_token("cur_month"),
+                "%22)",
+            ),
+        },
+    })
+
+    u_life_data = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_life_data,
+            "WFDictionaryKey": "data",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("URL 的内容", u_life_search),
+        },
+    })
+    u_life_total = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_life_total,
+            "WFDictionaryKey": "total",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("词典值", u_life_data),
+        },
+    })
+    u_life_items = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_life_items,
+            "WFDictionaryKey": "items",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("词典值", u_life_data),
+        },
+    })
+
+    g_exist = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_exist,
+            "WFControlFlowMode": 0,
+            "WFCondition": 2,
+            "WFNumberValue": "0",
+            "WFInput": {
+                "Type": "Variable",
+                "Variable": {
+                    "Value": {
+                        "OutputName": "词典值",
+                        "OutputUUID": u_life_total,
+                        "Type": "ActionOutput",
+                        "Aggrandizements": [{"CoercionItemClass": "WFNumberContentItem", "Type": "WFCoercionVariableAggrandizement"}],
+                    },
+                    "WFSerializationType": "WFTextTokenAttachment",
+                },
+            },
+        },
+    })
+
+    u_first = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getitemfromlist",
+        "WFWorkflowActionParameters": {
+            "UUID": u_first,
+            "WFInput": out_attach("词典值", u_life_items),
+            "WFItemSpecifier": "First Item",
+        },
+    })
+    u_rec_id = uid()
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.getvalueforkey",
+        "WFWorkflowActionParameters": {
+            "UUID": u_rec_id,
+            "WFDictionaryKey": "record_id",
+            "WFGetDictionaryValueType": "Value",
+            "WFInput": out_attach("来自列表的项目", u_first),
+        },
+    })
+    actions.append(act_setvar("sync_rec_id", out_attach("词典值", u_rec_id)))
+
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionParameters": {
+            "ShowHeaders": True,
+            "UUID": uid(),
+            "WFHTTPBodyType": "File",
+            "WFHTTPHeaders": {
+                "Value": {
+                    "WFDictionaryFieldValueItems": [
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Authorization"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": token_str("Bearer ", var_token("feishu_token")),
+                        },
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Content-Type"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": {"Value": {"string": "application/json"}, "WFSerializationType": "WFTextTokenString"},
+                        },
+                    ]
+                },
+                "WFSerializationType": "WFDictionaryFieldValue",
+            },
+            "WFHTTPMethod": "PUT",
+            "WFRequestVariable": var_attach("sync_body"),
+            "WFURL": token_str(var_token("life_url"), "/", var_token("sync_rec_id")),
+        },
+    })
+
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_exist,
+            "WFControlFlowMode": 1,
+        },
+    })
+
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.downloadurl",
+        "WFWorkflowActionParameters": {
+            "ShowHeaders": True,
+            "UUID": uid(),
+            "WFHTTPBodyType": "File",
+            "WFHTTPHeaders": {
+                "Value": {
+                    "WFDictionaryFieldValueItems": [
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Authorization"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": token_str("Bearer ", var_token("feishu_token")),
+                        },
+                        {
+                            "WFItemType": 0,
+                            "WFKey": {"Value": {"string": "Content-Type"}, "WFSerializationType": "WFTextTokenString"},
+                            "WFValue": {"Value": {"string": "application/json"}, "WFSerializationType": "WFTextTokenString"},
+                        },
+                    ]
+                },
+                "WFSerializationType": "WFDictionaryFieldValue",
+            },
+            "WFHTTPMethod": "POST",
+            "WFRequestVariable": var_attach("sync_body"),
+            "WFURL": token_str(var_token("life_url")),
+        },
+    })
+
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_exist,
+            "WFControlFlowMode": 2,
+        },
+    })
+
+    set_text_var(
+        actions,
+        "notify_msg",
+        token_str(var_token("notify_msg"), "｜🔄 ", var_token("cur_month"), " 净结余 ¥", var_token("month_net")),
+    )
+
+    actions.append({
+        "WFWorkflowActionIdentifier": "is.workflow.actions.conditional",
+        "WFWorkflowActionParameters": {
+            "GroupingIdentifier": g_sync_biz,
+            "WFControlFlowMode": 2,
+        },
+    })
+
+    # 3.5 Show Completion Notification
     actions.append({
         "WFWorkflowActionIdentifier": "is.workflow.actions.notification",
         "WFWorkflowActionParameters": {

@@ -84,6 +84,7 @@ const LIFE_CATEGORIES = [
   { name: '理财收益' },
   { name: '闲置转让' },
   { name: '其他收入' },
+  { name: '生意结余' },
 ];
 
 const BIZ_CATEGORIES = [
@@ -104,7 +105,7 @@ const BIZ_CATEGORIES = [
  * Build the Feishu Bitable `tables.create` payload with base fields,
  * plus subsequent `fields.create` payloads for formula columns.
  */
-function buildTableSchema(tableName, categoryOptions) {
+function buildTableSchema(tableName, categoryOptions, isLifeLedger = false) {
   const baseFields = [
     {
       field_name: '事件',
@@ -142,12 +143,19 @@ function buildTableSchema(tableName, categoryOptions) {
     },
   ];
 
+  const incomeFormula = isLifeLedger
+    ? 'IF([标签]="生意结余",[收支],IF([收支]>0,[收支],0))'
+    : 'IF([收支]>0,[收支],0)';
+  const expenseFormula = isLifeLedger
+    ? 'IF([标签]="生意结余",0,IF([收支]<0,ABS([收支]),0))'
+    : 'IF([收支]<0,ABS([收支]),0)';
+
   const formulaFields = [
     {
       field_name: '收入',
       type: 20, // Formula
       property: {
-        formula_expression: 'IF([收支]>0,[收支],0)',
+        formula_expression: incomeFormula,
         formatter: '0.00',
       },
     },
@@ -155,7 +163,7 @@ function buildTableSchema(tableName, categoryOptions) {
       field_name: '支出',
       type: 20, // Formula
       property: {
-        formula_expression: 'IF([收支]<0,ABS([收支]),0)',
+        formula_expression: expenseFormula,
         formatter: '0.00',
       },
     },
@@ -163,7 +171,7 @@ function buildTableSchema(tableName, categoryOptions) {
       field_name: '月份',
       type: 20, // Formula
       property: {
-        formula_expression: 'TEXT([时间],"YYYY/MM")',
+        formula_expression: 'TODATE([时间],"YYYY/MM")',
       },
     },
   ];
@@ -219,8 +227,8 @@ async function fetchTenantTokenRaw(appId, appSecret) {
   return json.tenant_access_token;
 }
 
-async function createLedgerTable(token, appToken, tableName, categoryOptions) {
-  const { tablePayload, formulaFields } = buildTableSchema(tableName, categoryOptions);
+async function createLedgerTable(token, appToken, tableName, categoryOptions, isLifeLedger = false) {
+  const { tablePayload, formulaFields } = buildTableSchema(tableName, categoryOptions, isLifeLedger);
   const createUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables`;
   console.log(`\n[1/2] Creating table "${tableName}" in Bitable app ${appToken}...`);
   const data = await feishuRequest(createUrl, 'POST', token, tablePayload);
@@ -267,14 +275,16 @@ async function main() {
 
   if (args.dryRun) {
     console.log('=== [DRY RUN] Feishu Bitable Initialization Payloads ===\n');
-    const bizSchema = buildTableSchema('副业项目账本', BIZ_CATEGORIES);
-    const lifeSchema = buildTableSchema('日常消费账本', LIFE_CATEGORIES);
+    const bizSchema = buildTableSchema('副业项目账本', BIZ_CATEGORIES, false);
+    const lifeSchema = buildTableSchema('日常消费账本', LIFE_CATEGORIES, true);
     console.log('1. POST /open-apis/bitable/v1/apps/:app_token/tables (副业项目账本):');
     console.log(JSON.stringify(bizSchema.tablePayload, null, 2));
     console.log('\n2. POST /open-apis/bitable/v1/apps/:app_token/tables/:table_id/fields (3 Formula Fields):');
     console.log(JSON.stringify(bizSchema.formulaFields, null, 2));
     console.log('\n3. POST /open-apis/bitable/v1/apps/:app_token/tables (日常消费账本):');
     console.log(JSON.stringify(lifeSchema.tablePayload, null, 2));
+    console.log('\n4. POST /open-apis/bitable/v1/apps/:app_token/tables/:table_id/fields (日常消费账本 联动公式列):');
+    console.log(JSON.stringify(lifeSchema.formulaFields, null, 2));
     console.log('\n[DRY RUN OK] No network calls made.');
     return;
   }
@@ -290,7 +300,7 @@ async function main() {
   const bizRes = await createLedgerTable(token, bizToken, '副业项目账本', BIZ_CATEGORIES);
   let lifeRes = bizRes;
   if (args.mode === 'dual') {
-    lifeRes = await createLedgerTable(token, lifeToken, '日常消费账本', LIFE_CATEGORIES);
+    lifeRes = await createLedgerTable(token, lifeToken, '日常消费账本', LIFE_CATEGORIES, true);
   }
 
   if (args.insertSample) {
