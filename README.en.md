@@ -56,7 +56,16 @@ node tools/init-bitable.mjs --insert-sample
 # 3. Or initialize via official lark-cli
 FEISHU_APP_TOKEN="YOUR_BITABLE_APP_TOKEN" bash init-feishu-ledger.sh
 
-# 4. Customize categories and rebuild the .shortcut files
+# 4. Idempotently sync monthly Business Ledger net balance (SUM(收支)) into Daily Life Ledger (Plan A)
+FEISHU_APP_ID="YOUR_FEISHU_APP_ID" \
+FEISHU_APP_SECRET="YOUR_FEISHU_APP_SECRET" \
+FEISHU_BIZ_APP_TOKEN="YOUR_BITABLE_APP_TOKEN_BIZ" \
+FEISHU_BIZ_TABLE_ID="YOUR_TABLE_ID_BIZ" \
+FEISHU_LIFE_APP_TOKEN="YOUR_BITABLE_APP_TOKEN_LIFE" \
+FEISHU_LIFE_TABLE_ID="YOUR_TABLE_ID_LIFE" \
+node tools/sync-business-to-life.mjs
+
+# 5. Customize categories and rebuild the .shortcut files
 python3 tools/build-shortcut.py --config config/shortcut-config.example.json --sign
 ```
 
