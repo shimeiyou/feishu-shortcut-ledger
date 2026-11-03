@@ -1,70 +1,22 @@
 {
-  "shortcut_name": "飞书双账本自动记账-通用模板",
+  "shortcut_name": "飞书一体账本·通用版",
   "feishu": {
     "app_id": "YOUR_FEISHU_APP_ID",
     "app_secret": "YOUR_FEISHU_APP_SECRET",
-    "biz_record_url": "https://open.feishu.cn/open-apis/bitable/v1/apps/YOUR_BITABLE_APP_TOKEN_BIZ/tables/YOUR_TABLE_ID_BIZ/records",
-    "life_record_url": "https://open.feishu.cn/open-apis/bitable/v1/apps/YOUR_BITABLE_APP_TOKEN_LIFE/tables/YOUR_TABLE_ID_LIFE/records"
+    "record_url": "https://open.feishu.cn/open-apis/bitable/v1/apps/YOUR_BITABLE_APP_TOKEN/tables/YOUR_TABLE_ID/records"
   },
-  "ledgers": {
-    "biz_name": "副业项目账本",
-    "life_name": "日常消费账本"
-  },
-  "menu_top": [
-    "副业项目收入",
-    "副业项目支出",
-    "日常消费支出",
-    "日常其他收入"
-  ],
-  "categories": {
-    "biz_income_default": "副业收入",
-    "biz_income_options": [
-      "主业收入",
-      "副业收入",
-      "项目回款",
-      "咨询服务",
-      "其他收入"
-    ],
-    "biz_expense_quick": [
-      { "title": "采购成本", "category": "采购成本", "default_note": "采购成本" },
-      { "title": "运营支出", "category": "运营支出", "default_note": "运营支出" },
-      { "title": "软件云服务", "category": "软件云服务", "default_note": "软件云服务" },
-      { "title": "办公耗材", "category": "办公耗材", "default_note": "办公耗材" },
-      { "title": "交通物流", "category": "交通物流", "default_note": "交通物流" },
-      { "title": "设备工具", "category": "设备工具", "default_note": null },
-      { "title": "其他项目支出", "category": null, "default_note": null }
-    ],
-    "biz_expense_list": [
-      "采购成本",
-      "运营支出",
-      "软件云服务",
-      "办公耗材",
-      "交通物流",
-      "设备工具",
-      "其他支出"
-    ],
-    "life_expense_list": [
-      "餐饮",
-      "交通",
-      "购物",
-      "居住水电",
-      "娱乐休闲",
-      "医疗健康",
-      "人情往来",
-      "其他消费"
-    ],
-    "life_income_list": [
-      "主业工资",
-      "奖金补贴",
-      "理财收益",
-      "闲置转让",
-      "其他收入"
-    ]
-  },
-  "channels": [
-    "微信支付",
-    "支付宝",
-    "银行卡",
-    "现金"
+  "branches": [
+    {"title": "生意 / 项目收入", "ledger": "生意", "sign": 1, "categories": [
+      {"name": "项目收入", "ask_note": true}, {"name": "服务收入", "ask_note": true}, {"name": "其他", "ask_note": true}
+    ]},
+    {"title": "生意 / 项目支出", "ledger": "生意", "sign": -1, "categories": [
+      {"name": "采购成本"}, {"name": "运营支出"}, {"name": "软件服务"}, {"name": "交通物流"}, {"name": "设备工具", "ask_note": true}, {"name": "其他", "ask_note": true}
+    ]},
+    {"title": "生活支出", "ledger": "生活", "sign": -1, "categories": [
+      {"name": "餐饮"}, {"name": "日常"}, {"name": "购物"}, {"name": "居住"}, {"name": "交通"}, {"name": "医疗"}, {"name": "其他", "ask_note": true}
+    ]},
+    {"title": "生活收入", "ledger": "生活", "sign": 1, "categories": [
+      {"name": "工资" , "ask_note": true}, {"name": "退款", "ask_note": true}, {"name": "其他", "ask_note": true}
+    ]}
   ]
 }

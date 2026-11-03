@@ -1,324 +1,59 @@
 #!/usr/bin/env node
-/**
- * init-bitable.mjs — Zero-dependency Feishu Bitable (多维表格) Schema & Formula Initializer
- *
- * Requires: Node.js 18+ (uses built-in global `fetch`).
- * Creates one or two ledger tables inside your Feishu Bitable base with the exact
- * Bookkeeping Schema:
- *   Base Fields (written by iPhone Shortcut / API):
- *     1. 事件 (Text, type=1, primary column) — 消费或收入摘要
- *     2. 收支 (Number, type=2, 2 decimals)   — 正数表示收入（如 500），负数表示支出（如 -35.5）
- *     3. 标签 (Text, type=1)                 — 通用分类文本标签
- *     4. 分类 (Multi-Select, type=4)         — 彩色分类标签（餐饮、交通、购物、副业收入、采购成本等）
- *     5. 时间 (Date, type=5, yyyy/MM/dd)     — 记账日期（开启新记录自动填入创建时间）
- *     6. 渠道 (Text, type=1)                 — 微信支付 / 支付宝 / 银行卡 / 现金（可选）
- *   Formula Fields (type=20, auto-calculated for the 8 Dashboard Widgets):
- *     7. 收入 (Formula) — IF([收支]>0,[收支],0)
- *     8. 支出 (Formula) — IF([收支]<0,ABS([收支]),0)
- *     9. 月份 (Formula) — TEXT([时间],"YYYY/MM")
- *
- * Usage:
- *   FEISHU_APP_ID=cli_xxx FEISHU_APP_SECRET=xxx FEISHU_APP_TOKEN=bascnxxx node tools/init-bitable.mjs
- *   node tools/init-bitable.mjs --dry-run
- *   node tools/init-bitable.mjs --app-id cli_xxx --app-secret xxx --app-token bascnxxx --insert-sample
- */
-
+/** Create a NEW unified table only. Preview is default; --apply opts in. */
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
-
-function parseArgs(argv) {
-  const args = {
-    appId: process.env.FEISHU_APP_ID || '',
-    appSecret: process.env.FEISHU_APP_SECRET || '',
-    appToken: process.env.FEISHU_APP_TOKEN || '',
-    appTokenBiz: process.env.FEISHU_APP_TOKEN_BIZ || '',
-    appTokenLife: process.env.FEISHU_APP_TOKEN_LIFE || '',
-    mode: process.env.LEDGER_MODE || 'dual', // 'dual' | 'single'
-    insertSample: false,
-    dryRun: false,
-  };
-  for (let i = 2; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === '--dry-run') args.dryRun = true;
-    else if (a === '--insert-sample') args.insertSample = true;
-    else if (a === '--app-id') args.appId = argv[++i] || '';
-    else if (a === '--app-secret') args.appSecret = argv[++i] || '';
-    else if (a === '--app-token') args.appToken = argv[++i] || '';
-    else if (a === '--app-token-biz') args.appTokenBiz = argv[++i] || '';
-    else if (a === '--app-token-life') args.appTokenLife = argv[++i] || '';
-    else if (a === '--mode') args.mode = argv[++i] || 'dual';
-    else if (a === '--help' || a === '-h') {
-      console.log(`Usage:
-  FEISHU_APP_ID=cli_xxx FEISHU_APP_SECRET=xxx FEISHU_APP_TOKEN=bascnxxx node tools/init-bitable.mjs [options]
-
-Options:
-  --app-id <id>            Feishu App ID (or env FEISHU_APP_ID)
-  --app-secret <secret>    Feishu App Secret (or env FEISHU_APP_SECRET)
-  --app-token <token>      Bitable App Token from URL (or env FEISHU_APP_TOKEN)
-  --app-token-biz <token>  Optional separate Bitable App Token for Business/Project Ledger
-  --app-token-life <token> Optional separate Bitable App Token for Daily Life Ledger
-  --mode <dual|single>     Create two tables ('日常消费账本' + '副业项目账本') or one table (default: dual)
-  --insert-sample          Insert sample records from config/sample-records.json after table creation
-  --dry-run                Print the exact REST API payloads without making network requests`);
-      process.exit(0);
-    }
-  }
-  return args;
+import {fileURLToPath} from 'node:url';
+const ROOT=new URL('../',import.meta.url);
+export function schema(config=JSON.parse(fs.readFileSync(new URL('config/shortcut-config.example.json',ROOT),'utf8'))) {
+  const categories=[...new Set(config.branches.flatMap(b=>b.categories.map(c=>c.name)).concat('生意结余'))];
+  return {table:{name:'一体账本',default_view_name:'收支明细',fields:[
+    {field_name:'事件',type:1},
+    {field_name:'时间',type:5,property:{date_formatter:'yyyy/MM/dd HH:mm',auto_fill:true}},
+    {field_name:'收支',type:2,property:{formatter:'0.00'}},
+    {field_name:'账本',type:3,property:{options:[{name:'生意'},{name:'生活'}]}},
+    {field_name:'分类',type:3,property:{options:categories.map(name=>({name}))}},
+    {field_name:'来源',type:1}
+  ]},formulas:[
+    {field_name:'月份',type:20,property:{formula_expression:'TEXT([时间],"YYYY/MM")'}},
+    {field_name:'收入',type:20,property:{formula_expression:'IF(AND([账本]="生活",[分类]="生意结余",[来源]="自动联动"),[收支],IF([收支]>0,[收支],0))',formatter:'0.00'}},
+    {field_name:'支出',type:20,property:{formula_expression:'IF(AND([账本]="生活",[分类]="生意结余",[来源]="自动联动"),0,IF([收支]<0,ABS([收支]),0))',formatter:'0.00'}}
+  ]};
 }
-
-const LIFE_CATEGORIES = [
-  { name: '餐饮' },
-  { name: '交通' },
-  { name: '购物' },
-  { name: '居住水电' },
-  { name: '娱乐休闲' },
-  { name: '医疗健康' },
-  { name: '人情往来' },
-  { name: '其他消费' },
-  { name: '主业工资' },
-  { name: '奖金补贴' },
-  { name: '理财收益' },
-  { name: '闲置转让' },
-  { name: '其他收入' },
-  { name: '生意结余' },
-];
-
-const BIZ_CATEGORIES = [
-  { name: '主业收入' },
-  { name: '副业收入' },
-  { name: '项目回款' },
-  { name: '咨询服务' },
-  { name: '采购成本' },
-  { name: '运营支出' },
-  { name: '软件云服务' },
-  { name: '办公耗材' },
-  { name: '交通物流' },
-  { name: '设备工具' },
-  { name: '其他支出' },
-];
-
-/**
- * Build the Feishu Bitable `tables.create` payload with base fields,
- * plus subsequent `fields.create` payloads for formula columns.
- */
-function buildTableSchema(tableName, categoryOptions, isLifeLedger = false) {
-  const baseFields = [
-    {
-      field_name: '事件',
-      type: 1, // Text (Primary column)
-    },
-    {
-      field_name: '收支',
-      type: 2, // Number (+income, -expense)
-      property: {
-        formatter: '0.00',
-      },
-    },
-    {
-      field_name: '标签',
-      type: 1, // Text
-    },
-    {
-      field_name: '分类',
-      type: 4, // MultiSelect (compatible with array ["分类"] from iOS Shortcut)
-      property: {
-        options: categoryOptions,
-      },
-    },
-    {
-      field_name: '时间',
-      type: 5, // DateTime
-      property: {
-        date_formatter: 'yyyy/MM/dd',
-        auto_fill: true,
-      },
-    },
-    {
-      field_name: '渠道',
-      type: 1, // Text (微信支付 / 支付宝 / 银行卡 / 现金)
-    },
-  ];
-
-  const incomeFormula = isLifeLedger
-    ? 'IF([标签]="生意结余",[收支],IF([收支]>0,[收支],0))'
-    : 'IF([收支]>0,[收支],0)';
-  const expenseFormula = isLifeLedger
-    ? 'IF([标签]="生意结余",0,IF([收支]<0,ABS([收支]),0))'
-    : 'IF([收支]<0,ABS([收支]),0)';
-
-  const formulaFields = [
-    {
-      field_name: '收入',
-      type: 20, // Formula
-      property: {
-        formula_expression: incomeFormula,
-        formatter: '0.00',
-      },
-    },
-    {
-      field_name: '支出',
-      type: 20, // Formula
-      property: {
-        formula_expression: expenseFormula,
-        formatter: '0.00',
-      },
-    },
-    {
-      field_name: '月份',
-      type: 20, // Formula
-      property: {
-        formula_expression: 'TODATE([时间],"YYYY/MM")',
-      },
-    },
-  ];
-
-  return {
-    tablePayload: {
-      table: {
-        name: tableName,
-        default_view_name: '收支明细表',
-        fields: baseFields,
-      },
-    },
-    formulaFields,
-  };
+export async function request(path,method='GET',token,body,fetcher=fetch) {
+  const res=await fetcher('https://open.feishu.cn/open-apis'+path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  const data=await res.json();
+  if(!res.ok||data.code!==0) throw Error('飞书接口失败：HTTP '+res.status+'，code='+data.code+'；请检查权限，勿盲目重复提交。');
+  return data;
 }
-
-async function feishuRequest(url, method, token, body) {
-  const headers = { 'Content-Type': 'application/json; charset=utf-8' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json();
-  if (!res.ok || (typeof json.code === 'number' && json.code !== 0)) {
-    throw new Error(`Feishu API error (${method} ${url}) -> code=${json.code} msg=${json.msg || res.statusText}`);
+export async function initialize(env,insertSample=false,fetcher=fetch) {
+  const {FEISHU_APP_ID:app_id,FEISHU_APP_SECRET:app_secret,FEISHU_APP_TOKEN:appToken}=env;
+  if(!/^cli_[A-Za-z0-9]+$/.test(app_id||'')||!app_secret||!/^[A-Za-z0-9]+$/.test(appToken||''))throw Error('请设置 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_APP_TOKEN');
+  const req=(p,m,t,b)=>request(p,m,t,b,fetcher);
+  const auth=await req('/auth/v3/tenant_access_token/internal','POST',null,{app_id,app_secret});
+  const token=auth.tenant_access_token;if(!token)throw Error('缺少授权令牌');
+  const prefix='/bitable/v1/apps/'+appToken+'/tables', spec=schema();
+  let cursor=null;const seen=new Set();
+  do {
+    const {data}=await req(prefix+'?page_size=100'+(cursor?'&page_token='+encodeURIComponent(cursor):''),'GET',token);
+    if(!Array.isArray(data?.items))throw Error('数据表列表响应异常');
+    if(data.items.some(t=>t.name===spec.table.name))throw Error('已存在“一体账本”，为保护原表，本脚本不再建表或修改它。请核对已有结构。');
+    if(!data.has_more)break;
+    cursor=data.page_token;if(!cursor||seen.has(cursor))throw Error('数据表列表分页异常');seen.add(cursor);
+  }while(true);
+  const {data}=await req(prefix,'POST',token,{table:spec.table});
+  const id=data?.table_id;if(!id)throw Error('建表结果不确定，请先去飞书核对，勿重复执行');
+  console.log('已创建新表 FEISHU_TABLE_ID='+id+'；后续失败时先检查此表，不要重复建表。');
+  for(const field of spec.formulas)await req(prefix+'/'+id+'/fields','POST',token,field);
+  if(insertSample){
+    const samples=JSON.parse(fs.readFileSync(new URL('config/sample-records.json',ROOT),'utf8'));
+    await req(prefix+'/'+id+'/records/batch_create','POST',token,{records:samples.map(fields=>({fields}))});
   }
-  return json.data;
+  return {tableId:id,recordUrl:'https://open.feishu.cn/open-apis'+prefix+'/'+id+'/records'};
 }
-
-async function getTenantAccessToken(appId, appSecret) {
-  const data = await feishuRequest(
-    'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal',
-    'POST',
-    null,
-    { app_id: appId, app_secret: appSecret }
-  );
-  // Note: tenant_access_token response puts tenant_access_token at top-level
-  return data?.tenant_access_token;
+async function main(){
+  const args=process.argv.slice(2);
+  if(args.some(a=>!['--apply','--dry-run','--insert-sample','--help'].includes(a)))throw Error('未知参数；使用 --help 查看用法');
+  if(args.includes('--help')){console.log('node tools/init-bitable.mjs [--dry-run | --apply] [--insert-sample]\n默认预览，不联网。--apply 只新建一张表，不修改旧表。凭证使用环境变量。');return;}
+  if(!args.includes('--apply')||args.includes('--dry-run')){console.log(JSON.stringify(schema(),null,2));return;}
+  console.log(JSON.stringify(await initialize(process.env,args.includes('--insert-sample')),null,2));
 }
-
-async function fetchTenantTokenRaw(appId, appSecret) {
-  const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
-  });
-  const json = await res.json();
-  if (json.code !== 0 || !json.tenant_access_token) {
-    throw new Error(`Failed to get tenant_access_token: code=${json.code} msg=${json.msg}`);
-  }
-  return json.tenant_access_token;
-}
-
-async function createLedgerTable(token, appToken, tableName, categoryOptions, isLifeLedger = false) {
-  const { tablePayload, formulaFields } = buildTableSchema(tableName, categoryOptions, isLifeLedger);
-  const createUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables`;
-  console.log(`\n[1/2] Creating table "${tableName}" in Bitable app ${appToken}...`);
-  const data = await feishuRequest(createUrl, 'POST', token, tablePayload);
-  const tableId = data.table_id;
-  console.log(`  -> Created table_id: ${tableId}`);
-
-  console.log(`[2/2] Adding 3 auto-calculated Formula fields (收入, 支出, 月份) to ${tableId}...`);
-  const fieldUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/fields`;
-  for (const ff of formulaFields) {
-    await feishuRequest(fieldUrl, 'POST', token, ff);
-    console.log(`  -> Created formula field: ${ff.field_name} = ${ff.property.formula_expression}`);
-  }
-
-  return {
-    tableName,
-    appToken,
-    tableId,
-    recordUrl: `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records`,
-  };
-}
-
-async function insertSampleRecords(token, appToken, tableId, records) {
-  const batchUrl = `https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${tableId}/records/batch_create`;
-  const payload = {
-    records: records.map((r) => ({
-      fields: {
-        事件: r['事件'],
-        收支: r['收支'],
-        标签: r['标签'],
-        分类: r['分类'],
-        时间: Date.parse(r['时间'].replace(/\//g, '-') + 'T12:00:00+08:00'),
-        渠道: r['渠道'],
-      },
-    })),
-  };
-  await feishuRequest(batchUrl, 'POST', token, payload);
-  console.log(`  -> Inserted ${records.length} sample records into ${tableId}`);
-}
-
-async function main() {
-  const args = parseArgs(process.argv);
-  const lifeToken = args.appTokenLife || args.appToken || 'YOUR_BITABLE_APP_TOKEN_LIFE';
-  const bizToken = args.appTokenBiz || args.appToken || 'YOUR_BITABLE_APP_TOKEN_BIZ';
-
-  if (args.dryRun) {
-    console.log('=== [DRY RUN] Feishu Bitable Initialization Payloads ===\n');
-    const bizSchema = buildTableSchema('副业项目账本', BIZ_CATEGORIES, false);
-    const lifeSchema = buildTableSchema('日常消费账本', LIFE_CATEGORIES, true);
-    console.log('1. POST /open-apis/bitable/v1/apps/:app_token/tables (副业项目账本):');
-    console.log(JSON.stringify(bizSchema.tablePayload, null, 2));
-    console.log('\n2. POST /open-apis/bitable/v1/apps/:app_token/tables/:table_id/fields (3 Formula Fields):');
-    console.log(JSON.stringify(bizSchema.formulaFields, null, 2));
-    console.log('\n3. POST /open-apis/bitable/v1/apps/:app_token/tables (日常消费账本):');
-    console.log(JSON.stringify(lifeSchema.tablePayload, null, 2));
-    console.log('\n4. POST /open-apis/bitable/v1/apps/:app_token/tables/:table_id/fields (日常消费账本 联动公式列):');
-    console.log(JSON.stringify(lifeSchema.formulaFields, null, 2));
-    console.log('\n[DRY RUN OK] No network calls made.');
-    return;
-  }
-
-  if (!args.appId || !args.appSecret || (!args.appToken && (!args.appTokenBiz || !args.appTokenLife))) {
-    console.error('Error: Missing required credentials. Provide FEISHU_APP_ID, FEISHU_APP_SECRET, and FEISHU_APP_TOKEN (or run with --dry-run).');
-    process.exit(1);
-  }
-
-  const token = await fetchTenantTokenRaw(args.appId, args.appSecret);
-  const sampleData = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'sample-records.json'), 'utf8'));
-
-  const bizRes = await createLedgerTable(token, bizToken, '副业项目账本', BIZ_CATEGORIES);
-  let lifeRes = bizRes;
-  if (args.mode === 'dual') {
-    lifeRes = await createLedgerTable(token, lifeToken, '日常消费账本', LIFE_CATEGORIES, true);
-  }
-
-  if (args.insertSample) {
-    await insertSampleRecords(token, bizRes.appToken, bizRes.tableId, sampleData.biz_records);
-    if (args.mode === 'dual') {
-      await insertSampleRecords(token, lifeRes.appToken, lifeRes.tableId, sampleData.life_records);
-    }
-  }
-
-  console.log('\n============================================================');
-  console.log('Feishu Bitable Initialization Complete!');
-  console.log('Copy these Record API URLs into your iPhone Shortcut:');
-  console.log(`  biz_url : ${bizRes.recordUrl}`);
-  console.log(`  life_url: ${lifeRes.recordUrl}`);
-  console.log('============================================================\n');
-}
-
-main().catch((err) => {
-  console.error('[FATAL]', err.message);
-  process.exit(1);
-});
+if(process.argv[1]===fileURLToPath(import.meta.url))main().catch(e=>{console.error(e.message);process.exitCode=1;});

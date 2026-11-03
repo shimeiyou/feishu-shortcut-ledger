@@ -1,8 +1,12 @@
-# Local secrets and user configs
+# Keep local credentials and generated private shortcuts out of Git.
 .env
 .env.*
-config/shortcut-config.local.json
+!.env.example
 config/*.local.json
-*.bak*
-.DS_Store
+config/*.private.json
+shortcuts/private/
+*.signed.shortcut
+__pycache__/
+*.pyc
 node_modules/
+.DS_Store
