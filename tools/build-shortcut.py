@@ -44,8 +44,8 @@ def validate_config(cfg):
     if len({b['title'] for b in branches}) != 4: raise ValueError('Branch titles must be unique')
     for b in branches:
         names = [c['name'] for c in b['categories']]
-        if not names or any(not n.strip() or n == '生意结余' for n in names) or len(set(names)) != len(names):
-            raise ValueError('Categories must be unique, nonempty and not reserved 生意结余')
+        if not names or any(not n.strip() or n in ('生意结余', '自定义分类') for n in names) or len(set(names)) != len(names):
+            raise ValueError('Categories must be unique, nonempty and not reserved 生意结余 / 自定义分类')
 
 def build_shortcut_dict(cfg):
     validate_config(cfg)
@@ -112,16 +112,22 @@ def build_shortcut_dict(cfg):
         textvar('账本', b['ledger']); textvar('收支类型', '收入' if b['sign'] > 0 else '支出')
         setvar('金额', act('math', WFInput=attach(var('money')), WFMathOperation='×', WFMathOperand=str(b['sign'])))
         sub = uid()
-        act('choosefrommenu', GroupingIdentifier=sub, WFControlFlowMode=0, WFMenuItems=[c['name'] for c in b['categories']], WFMenuPrompt='选择分类')
+        items = [c['name'] for c in b['categories']]
+        if b['ledger'] == '生意': items.append('自定义分类')
+        act('choosefrommenu', GroupingIdentifier=sub, WFControlFlowMode=0, WFMenuItems=items, WFMenuPrompt='选择分类')
         for c in b['categories']:
             act('choosefrommenu', GroupingIdentifier=sub, WFControlFlowMode=1, WFMenuItemTitle=c['name'])
             textvar('分类', c['name'])
-            if c.get('ask_note', False) or c['name'] == '其他':
-                setvar('event', act('ask', WFAskActionPrompt='请输入具体事件或收入来源：', WFInputType='Text'))
-            else: textvar('event', c['name'])
+        if b['ledger'] == '生意':
+            act('choosefrommenu', GroupingIdentifier=sub, WFControlFlowMode=1, WFMenuItemTitle='自定义分类')
+            setvar('分类', act('ask', WFAskActionPrompt='请输入分类', WFInputType='Text'))
         act('choosefrommenu', GroupingIdentifier=sub, WFControlFlowMode=2)
+        require(act('text.match', WFMatchTextPattern=r'\S', text=tok(var('分类'))), '请填写分类。')
+        reserved = cond(var('分类'), 4, '生意结余')
+        fail('生意结余为自动联动专用分类。'); flow(reserved, 2)
+        setvar('event', act('ask', WFAskActionPrompt='请输入备注', WFInputType='Text'))
     act('choosefrommenu', GroupingIdentifier=g, WFControlFlowMode=2)
-    require(var('event'), '请填写具体事件或收入来源。')
+    require(act('text.match', WFMatchTextPattern=r'\S', text=tok(var('event'))), '请填写备注。')
 
     epoch = act('date', WFDateActionMode='Specified Date', WFDateActionDate='1970-01-01T00:00:00Z')
     now = act('date', WFDateActionMode='Current Date')

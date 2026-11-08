@@ -54,7 +54,7 @@ class ShortcutTests(unittest.TestCase):
         self.assertEqual(http[1]['WFJSONValues']['Value']['WFDictionaryFieldValueItems'][0]['WFItemType'], 1)
         self.assertEqual(next(a['WFWorkflowActionParameters']['WFDateActionDate'] for a in self.actions if 'WFDateActionDate' in a['WFWorkflowActionParameters']), '1970-01-01T00:00:00Z')
 
-    def run_flow(self, branch=0, category=0, ocr='实付 ¥25.50', amount=25.50, note='服务 "A"\n第二行', token=None, record=None):
+    def run_flow(self, branch=0, category=0, ocr='实付 ¥25.50', amount=25.50, note='服务 "A"\n第二行', token=None, record=None, custom_category='自定义项目'):
         """Execute the generated plist graph with external actions mocked (not iOS)."""
         cfg = copy.deepcopy(CFG)
         cfg['feishu'] = {'app_id': 'cli_example', 'app_secret': 'synthetic-test-only',
@@ -112,7 +112,8 @@ class ShortcutTests(unittest.TestCase):
             elif name=='text.match': out=re.findall(p['WFMatchTextPattern'],str(value(p['text'])))
             elif name=='count': out=len(value(p['Input']))
             elif name=='choosefromlist': out=value(p['WFInput'])[0]
-            elif name=='ask': out=amount if p.get('WFInputType')=='Number' else note
+            elif name=='ask':
+                out=amount if p.get('WFInputType')=='Number' else custom_category if p.get('WFAskActionPrompt')=='请输入分类' else note
             elif name=='math': out=float(value(p['WFInput']))*float(p['WFMathOperand'])
             elif name=='date': out=0 if p['WFDateActionMode']=='Specified Date' else 1793505600
             elif name=='gettimebetweendates': out=float(value(p['WFInput']))-float(value(p['WFTimeUntilFromDate']))
@@ -140,6 +141,37 @@ class ShortcutTests(unittest.TestCase):
     def test_invalid_amount_or_blank_note_no_http(self):
         for amount in [0,-1,1.234]: self.assertFalse(self.run_flow(amount=amount)[0])
         self.assertFalse(self.run_flow(note='')[0])
+
+    def test_every_category_requires_note_and_keeps_category_separate(self):
+        for branch, bcfg in enumerate(CFG['branches']):
+            for category, cat in enumerate(bcfg['categories']):
+                with self.subTest(branch=bcfg['title'], category=cat['name']):
+                    http,notice=self.run_flow(branch=branch, category=category, note='手机膜')
+                    self.assertEqual(http[1]['fields']['事件'],'手机膜')
+                    self.assertEqual(http[1]['fields']['分类'],cat['name'])
+                    self.assertTrue(notice)
+                    for blank in ('','   ','\n\t'):
+                        self.assertFalse(self.run_flow(branch=branch, category=category, note=blank)[0])
+
+    def test_business_custom_category_and_reserved_identity(self):
+        for branch, bcfg in enumerate(CFG['branches']):
+            if bcfg['ledger']!='生意': continue
+            category=len(bcfg['categories'])
+            http,notice=self.run_flow(branch=branch,category=category,custom_category='培训',note='课程')
+            self.assertEqual(http[1]['fields']['分类'],'培训')
+            self.assertEqual(http[1]['fields']['事件'],'课程');self.assertTrue(notice)
+            for invalid in ('','  ','生意结余'):
+                self.assertFalse(self.run_flow(branch=branch,category=category,custom_category=invalid)[0])
+            self.assertFalse(self.run_flow(branch=branch,category=category,note='')[0])
+
+    def test_generic_menu_and_short_note_prompt(self):
+        self.assertTrue(any(b['ledger']=='生意' and b['sign']==-1 and any(c['name']=='购物' for c in b['categories']) for b in CFG['branches']))
+        for action in self.actions:
+            p=action['WFWorkflowActionParameters']
+            self.assertNotIn(p.get('WFMenuItemTitle'),('快驴','排骨','排骨料','撒料'))
+            if action['WFWorkflowActionIdentifier'].endswith('.ask') and p.get('WFInputType')=='Text':
+                self.assertIn(p['WFAskActionPrompt'],('请输入备注','请输入分类'))
+                self.assertNotIn('WFAskActionDefaultAnswer',p)
 
     def test_failed_or_uncertain_response_never_notifies(self):
         self.assertEqual(len(self.run_flow(token={'code':999})[0]),1)

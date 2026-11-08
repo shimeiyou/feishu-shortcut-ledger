@@ -20,7 +20,7 @@
 
 - 一张“一体账本”，用 `账本=生意/生活` 区分，两边各有收入、支出入口。
 - 识别到的金额先确认，可修改；没有候选时可手动输入，正负号由收支入口决定。
-- 常用支出选一次分类即可保存；设备、其他支出和收入填写具体事件，不再重复选择分类。
+- 生意、生活的收入和支出都在选分类后必填备注，备注保存为“事件”，不会用分类名替代。
 - 使用原生 JSON 字典发送，备注里的引号、换行不再破坏请求；日期使用毫秒数字。
 - 只有飞书返回 `code=0` 和 `record_id` 才显示成功。网络中断或结果不确定时先查表，不自动重发创建请求。
 - 月结余任务独立于手机触发，按整数分计算；重复自动行、分页异常、读写期间数据变化会中止，不删除原始流水。
@@ -77,6 +77,10 @@ node tools/init-bitable.mjs --apply
 
 ## 自定义分类与源码构建
 
+生意收入、支出的分类菜单均有“自定义分类”：输入本次分类后再填写备注，无需重新编译。比如“生意 / 项目支出 → 购物 → 备注”，保存分类为“购物”、事件为所填备注。默认没有个人采购或行业专用选项。
+
+手机输入的自定义分类只用于本次记录，不会自动加入快捷指令菜单；若要固定显示在菜单中，按下方步骤修改配置并重建模板。
+
 Python 3.10+，无需第三方依赖：
 
 ```bash
@@ -87,7 +91,7 @@ node tests/init.mjs
 python3 tools/check-public.py
 ```
 
-复制 `config/shortcut-config.example.json` 为 `config/shortcut-config.local.json`，修改分类和 `ask_note`。自定义输出放到忽略的私有目录：
+复制 `config/shortcut-config.example.json` 为 `config/shortcut-config.local.json`，修改常用分类；四个入口都必须填写备注，旧配置中的 `ask_note` 不再控制是否询问。自定义输出放到忽略的私有目录：
 
 ```bash
 python3 tools/build-shortcut.py --config config/shortcut-config.local.json --output shortcuts/private/MyLedger.shortcut

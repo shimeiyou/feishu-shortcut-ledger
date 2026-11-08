@@ -6,17 +6,93 @@
     "record_url": "https://open.feishu.cn/open-apis/bitable/v1/apps/YOUR_BITABLE_APP_TOKEN/tables/YOUR_TABLE_ID/records"
   },
   "branches": [
-    {"title": "生意 / 项目收入", "ledger": "生意", "sign": 1, "categories": [
-      {"name": "项目收入", "ask_note": true}, {"name": "服务收入", "ask_note": true}, {"name": "其他", "ask_note": true}
-    ]},
-    {"title": "生意 / 项目支出", "ledger": "生意", "sign": -1, "categories": [
-      {"name": "采购成本"}, {"name": "运营支出"}, {"name": "软件服务"}, {"name": "交通物流"}, {"name": "设备工具", "ask_note": true}, {"name": "其他", "ask_note": true}
-    ]},
-    {"title": "生活支出", "ledger": "生活", "sign": -1, "categories": [
-      {"name": "餐饮"}, {"name": "日常"}, {"name": "购物"}, {"name": "居住"}, {"name": "交通"}, {"name": "医疗"}, {"name": "其他", "ask_note": true}
-    ]},
-    {"title": "生活收入", "ledger": "生活", "sign": 1, "categories": [
-      {"name": "工资" , "ask_note": true}, {"name": "退款", "ask_note": true}, {"name": "其他", "ask_note": true}
-    ]}
+    {
+      "title": "生意 / 项目收入",
+      "ledger": "生意",
+      "sign": 1,
+      "categories": [
+        {
+          "name": "项目收入"
+        },
+        {
+          "name": "服务收入"
+        },
+        {
+          "name": "其他"
+        }
+      ]
+    },
+    {
+      "title": "生意 / 项目支出",
+      "ledger": "生意",
+      "sign": -1,
+      "categories": [
+        {
+          "name": "购物"
+        },
+        {
+          "name": "餐饮"
+        },
+        {
+          "name": "交通"
+        },
+        {
+          "name": "服务"
+        },
+        {
+          "name": "设备"
+        },
+        {
+          "name": "房租"
+        },
+        {
+          "name": "其他"
+        }
+      ]
+    },
+    {
+      "title": "生活支出",
+      "ledger": "生活",
+      "sign": -1,
+      "categories": [
+        {
+          "name": "餐饮"
+        },
+        {
+          "name": "日常"
+        },
+        {
+          "name": "购物"
+        },
+        {
+          "name": "居住"
+        },
+        {
+          "name": "交通"
+        },
+        {
+          "name": "医疗"
+        },
+        {
+          "name": "其他"
+        }
+      ]
+    },
+    {
+      "title": "生活收入",
+      "ledger": "生活",
+      "sign": 1,
+      "categories": [
+        {
+          "name": "工资"
+        },
+        {
+          "name": "退款"
+        },
+        {
+          "name": "其他"
+        }
+      ]
+    }
   ]
 }

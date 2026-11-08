@@ -28,7 +28,7 @@ The current signed artifact has an [auditable XML source](shortcuts/Feishu-Unifi
 
 ## Behavior and accounting
 
-One table uses `账本=生意` for business/projects and `账本=生活` for personal transactions. Amounts are positive for income and negative for expenses. Common expenses save after one category choice; other expenses and income ask for a specific note. Native JSON handles quotes/newlines. Success is shown only after Feishu returns `code=0` and `record_id`. An uncertain POST is never automatically repeated; check the table first.
+One table uses `账本=生意` for business/projects and `账本=生活` for personal transactions. Amounts are positive for income and negative for expenses. All four income/expense branches require a separate note after category selection; the note is saved as the event, never replaced by the category name. Both business branches offer a custom-category input on the phone. Blank or whitespace-only notes/categories are rejected. Native JSON handles quotes/newlines. Success is shown only after Feishu returns `code=0` and `record_id`. An uncertain POST is never automatically repeated; check the table first.
 
 The optional reconciler computes in integer cents, reads all pages, detects concurrent changes and duplicate automatic rows, and verifies each derived write. It does not delete raw transactions. Default execution is daily near **03:30 Asia/Shanghai**, with roughly ±15 minutes variation. Newly entered transactions can wait until the next successful run for the derived monthly transfer.
 
@@ -46,6 +46,6 @@ node tests/init.mjs
 python3 tools/check-public.py
 ```
 
-Copy the example config to `config/shortcut-config.local.json` to customize categories and `ask_note`. Write customized artifacts to ignored `shortcuts/private/`. On Mac, `--sign` uses Apple's local `shortcuts sign`; it never uploads credentials. Read the [migration guide](docs/07-migration-v1-to-v2.md) before upgrading v1's separate tables. Historical v1 material under `legacy/v1/` is not the installation path.
+Copy the example config to `config/shortcut-config.local.json` to customize persistent menu categories. Notes are always required; the old `ask_note` option no longer controls this. A phone-entered custom category applies to the current record and is not automatically added to the Shortcut menu. Write customized artifacts to ignored `shortcuts/private/`. On Mac, `--sign` uses Apple's local `shortcuts sign`; it never uploads credentials. Read the [migration guide](docs/07-migration-v1-to-v2.md) before upgrading v1's separate tables. Historical v1 material under `legacy/v1/` is not the installation path.
 
 Secrets belong only on your phone, in private environment variables, or private Script Properties (readable by project editors). Do not publish configured shortcuts, private configs, exports or real records. Offline tests simulate action graphs, initialization and failure paths; they do not claim device or new-account API acceptance.
